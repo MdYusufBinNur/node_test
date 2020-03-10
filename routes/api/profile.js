@@ -24,7 +24,6 @@ router.get('/me', auth, async (req,res) => {
 //@route GET api/profile
 //@desc  Create update user profile
 //@access  private
-
 router.post('/',
     [
         auth,
@@ -79,7 +78,7 @@ router.post('/',
     try{
         let profile = await Profile.findOne({ user: req.user.id });
         if (profile){
-            //Update
+        //Update
             profile = await Profile.findOneAndUpdate(
                 { user: req.user.id },
                 { $set: profileFields},
@@ -100,4 +99,96 @@ router.post('/',
     }
 
 });
+
+//@route GET api/profile
+//@desc  Get All Profiles
+//@access  Publis
+router.get('/',async (req, res) => {
+    try{
+        const profile = await  Profile.find().populate('user',['name','avatar']);
+        await res.json(profile);
+
+    }catch (e) {
+        console.error(e.message);
+        res.status(500).send("Server Error")
+    }
+});
+
+//@route GET api/profile/user/:user_id
+//@desc  Get All Profiles
+//@access  Publis
+router.get('/user/:user_id',async (req, res) => {
+    try{
+        const profile = await  Profile.findOne({user: req.params.user_id}).populate('user',['name','avatar']);
+        if (!profile){
+            return res.status(400).json({ msg: 'Profile not found'});
+        }
+        await res.json(profile);
+
+    }catch (e) {
+        console.error(e.message);
+        if (e.kind === 'ObjectId'){
+            return res.status(400).json({ msg: 'Profile no found'});
+
+        }
+        res.status(500).send("Server Error")
+    }
+});
+
+//@route DELETE api/profile
+//@desc  Delete Profile
+//@access  Private
+router.delete('/',auth, async (req, res) => {
+    try{
+         await  Profile.findOneAndRemove({ user:  req.user.id});
+         await  User.findOneAndRemove({ _id: req.user.id});
+
+        await res.json({ msg: "User Removed"});
+
+    }catch (e) {
+        console.error(e.message);
+        res.status(500).send("Server Error")
+    }
+});
+
+//@route PUT api/profile/experience
+//@desc  Add Profile Experience
+//@access  Private
+router.put('/experience',
+    [auth,
+        [
+            check('title',"Title is required").not().isEmpty(),
+            check('company',"Company is required").not().isEmpty(),
+            check('from',"From Date is required").not().isEmpty()
+        ]
+    ], async (req, res) => {
+
+        const errors = validationResult(req);
+        if (!errors.isEmpty()){
+            return res.status(400).json({ errors: errors.array()})
+        }
+        const {
+            title,
+            company,
+            location,
+            from,
+            to,
+            current,
+            description
+        } = req.body;
+        const newExp = {
+            title, company, location,from, to, current, description
+        };
+        try{
+            const profile = Profile.findOne({ user: req.user.id});
+
+            profile.experience.unshift(newExp);
+            await profile.save();
+            await res.json(profile);
+        }catch (e) {
+            console.error(e.message);
+            res.status(400).send(e.message);
+
+        }
+})
 module.exports = router;
